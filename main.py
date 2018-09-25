@@ -133,6 +133,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     """
     # TODO: Implement function
     for epoch in range(epochs):
+        print("EPOCH {} ...".format(epoch))
         for image, label in get_batches_fn(batch_size):
             #
             sess.run(train_op,
@@ -154,8 +155,6 @@ def run():
     # Download pretrained vgg model
     helper.maybe_download_pretrained_vgg(data_dir)
 
-    saver = tf.train.Saver()
-
     # OPTIONAL: Train and Inference on the cityscapes dataset instead of the Kitti dataset.
     # You'll need a GPU with at least 10 teraFLOPS to train on.
     #  https://www.cityscapes-dataset.com/
@@ -176,15 +175,17 @@ def run():
         EPOCHS = 10
         BATCH_SIZE = 8
 
-        correct_label = tf.placeholder(tf.float32, (None, 375, 1242, 1))
+        correct_label = tf.placeholder(tf.float32, (None, image_shape[0], image_shape[1], num_classes))
         learning_rate = tf.placeholder(tf.float32)
 
         logits, train_op, cross_entropy_loss = optimize(layer_output, correct_label, learning_rate, num_classes)
 
         # TODO: Train NN using the train_nn function
+        sess.run(tf.global_variables_initializer())
         train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, input_image, correct_label,
                  keep_prob, learning_rate)
 
+        saver = tf.train.Saver()
         saver.save(sess,'./mdl_'+st)
         print("Model saved.")
         # TODO: Save inference data using helper.save_inference_samples
