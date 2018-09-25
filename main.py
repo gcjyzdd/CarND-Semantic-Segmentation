@@ -5,6 +5,11 @@ import helper
 import warnings
 from distutils.version import LooseVersion
 import project_tests as tests
+import time
+import datetime
+
+ts = time.time()
+st = datetime.datetime.fromtimestamp(ts).strftime('%Y_%m_%d__%H_%M_%S')
 
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion(
@@ -64,6 +69,22 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
                                 kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
     output = tf.layers.conv2d_transpose(conv_1x1, num_classes, 4, 2, padding='same',
                                         kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    print("size")
+    tf.Print(output, [tf.shape(output)])
+
+    # make sure the shapes are the same!
+    conv_1x1 = tf.layers.conv2d(vgg_layer4_out, num_classes, 2, padding='same',
+                                kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    output = tf.add(output, conv_1x1)
+
+    output = tf.layers.conv2d_transpose(output, num_classes, 4, strides=(2, 2), padding='same',
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+
+    conv_1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, 4, padding='same',
+                                kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
+    output = tf.add(output, conv_1x1)
+    output = tf.layers.conv2d_transpose(output, num_classes, 16, strides=(8, 8), padding='same',
+                                        kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
 
     return output
 
@@ -111,10 +132,12 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param learning_rate: TF Placeholder for learning rate
     """
     # TODO: Implement function
-    for epoch in epochs:
+    for epoch in range(epochs):
         for image, label in get_batches_fn(batch_size):
             #
-            pass
+            sess.run(train_op,
+                     feed_dict={input_image: image, correct_label: label, keep_prob: 0.5, learning_rate: 1e-3})
+
     pass
 
 
@@ -131,6 +154,8 @@ def run():
     # Download pretrained vgg model
     helper.maybe_download_pretrained_vgg(data_dir)
 
+    saver = tf.train.Saver()
+
     # OPTIONAL: Train and Inference on the cityscapes dataset instead of the Kitti dataset.
     # You'll need a GPU with at least 10 teraFLOPS to train on.
     #  https://www.cityscapes-dataset.com/
@@ -145,12 +170,25 @@ def run():
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
         # TODO: Build NN using load_vgg, layers, and optimize function
-        input_img, keep_prob, layer3_out, layer4_out, layer7_out = load_vgg(sess, vgg_path)
+        input_image, keep_prob, layer3_out, layer4_out, layer7_out = load_vgg(sess, vgg_path)
         layer_output = layers(layer3_out, layer4_out, layer7_out, num_classes)
-        # TODO: Train NN using the train_nn function
 
+        EPOCHS = 10
+        BATCH_SIZE = 8
+
+        correct_label = tf.placeholder(tf.float32, (None, 375, 1242, 1))
+        learning_rate = tf.placeholder(tf.float32)
+
+        logits, train_op, cross_entropy_loss = optimize(layer_output, correct_label, learning_rate, num_classes)
+
+        # TODO: Train NN using the train_nn function
+        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, input_image, correct_label,
+                 keep_prob, learning_rate)
+
+        saver.save(sess,'./mdl_'+st)
+        print("Model saved.")
         # TODO: Save inference data using helper.save_inference_samples
-        #  helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
+        helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image)
 
         # OPTIONAL: Apply the trained model to a video
 
