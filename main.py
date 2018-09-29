@@ -7,6 +7,7 @@ from distutils.version import LooseVersion
 import project_tests as tests
 import time
 import datetime
+from moviepy.editor import VideoFileClip
 
 ts = time.time()
 st = datetime.datetime.fromtimestamp(ts).strftime('%Y_%m_%d__%H_%M_%S')
@@ -205,31 +206,16 @@ def process_video():
     num_classes = 2
     image_shape = (160, 576)
     data_dir = './data'
-    runs_dir = './runs'
-    tests.test_for_kitti_dataset(data_dir)
-
-    # Download pretrained vgg model
-    helper.maybe_download_pretrained_vgg(data_dir)
-
-    # OPTIONAL: Train and Inference on the cityscapes dataset instead of the Kitti dataset.
-    # You'll need a GPU with at least 10 teraFLOPS to train on.
-    #  https://www.cityscapes-dataset.com/
+    write_output = './output.mp4'
+    clip1 = VideoFileClip("./project_video.mp4")  # .subclip(18,48)
 
     with tf.Session() as sess:
         # Path to vgg model
         vgg_path = os.path.join(data_dir, 'vgg')
-        # Create function to get batches
-        get_batches_fn = helper.gen_batch_function(os.path.join(data_dir, 'data_road/testing'), image_shape)
-
-        # OPTIONAL: Augment Images for better results
-        #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
 
         # TODO: Build NN using load_vgg, layers, and optimize function
         input_image, keep_prob, layer3_out, layer4_out, layer7_out = load_vgg(sess, vgg_path)
         layer_output = layers(layer3_out, layer4_out, layer7_out, num_classes)
-
-        EPOCHS = 10
-        BATCH_SIZE = 8
 
         correct_label = tf.placeholder(tf.float32, (None, image_shape[0], image_shape[1], num_classes))
         learning_rate = tf.placeholder(tf.float32)
@@ -239,6 +225,11 @@ def process_video():
         saver = tf.train.Saver()
         saver.restore(sess, tf.train.latest_checkpoint('./'))
 
+        white_clip = clip1.fl_image(
+            lambda im: helper.gen_output_per_img(sess, logits, keep_prob, input_image, im, image_shape))
+        white_clip.write_videofile(write_output, audio=False)
+
 
 if __name__ == '__main__':
     run()
+    process_video()
